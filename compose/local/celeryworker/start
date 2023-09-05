@@ -1,0 +1,8 @@
+#!/bin/bash
+
+set -o errexit
+set -o nounset
+
+
+#watchfiles celery.__main__.main --args '-A config.celery_app worker -l INFO'
+celery -A scraper.celery_worker worker --concurrency=3 -l info

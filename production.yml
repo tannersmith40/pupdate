@@ -1,0 +1,107 @@
+version: '3'
+volumes:
+  lancaster_production_db_data: { }
+  lancaster_production_traefik: {}
+services:
+  backend: &backend
+    build:
+      context: .
+      dockerfile: ./compose/local/fastapi/Dockerfile
+#    image: lancaster_production_backend
+    env_file:
+      - ./.envs/.local/.postgres
+    container_name: lancaster_production_backend
+    depends_on:
+      - redis
+      - db
+    volumes:
+      - ./driver:/root/.wdm/drivers:z
+      - ./back:/app/back:z
+      - ./scraper:/app/scraper:z
+    networks:
+      lancaster-network:
+        aliases:
+          - backend
+    shm_size: '2gb'
+    command: /start
+
+  front:
+    container_name: lancaster_production_front
+#    image: lancaster_production_front
+    build:
+      context: .
+      dockerfile: ./compose/local/front/Dockerfile
+    volumes:
+      - ./front:/app:z
+        #    ports:
+        #      - "8080:80"
+    networks:
+      - lancaster-network
+
+  traefik:
+    container_name: lancaster_production_traefik
+    build:
+      context: .
+      dockerfile: ./compose/production/traefik/Dockerfile
+#    image: lancaster_production_traefik
+    depends_on:
+      - front
+    volumes:
+      - lancaster_production_traefik:/etc/traefik/acme
+    networks:
+      - lancaster-network
+    ports:
+      - '0.0.0.0:80:80'
+      - '0.0.0.0:443:443'
+
+  db:
+    image: postgres:14
+    container_name: lancaster_production_postgres
+    ports:
+      - "5432:5432"
+    env_file:
+      - ./.envs/.local/.postgres
+    volumes:
+      - lancaster_production_db_data:/var/lib/postgresql/data
+      - ./compose/init-scripts:/docker-entrypoint-initdb.d
+      - ./.envs/.local/.postgres:/app/.envs/.local/.postgres
+    networks:
+      - lancaster-network
+
+  redis:
+    container_name: lancaster_production_redis
+    restart: always
+    image: redis
+    networks:
+      - lancaster-network
+
+  celeryworker: &celeryworker
+    container_name: lancaster_production_celeryworker
+#    image: lancaster_production_celeryworker
+    env_file:
+      - ./.envs/.local/.postgres
+    build:
+      context: .
+      dockerfile: ./compose/local/celeryworker/Dockerfile
+    volumes:
+      - ./driver:/root/.wdm/drivers:z
+      - ./back:/app/back:z
+      - ./scraper:/app/scraper:z
+    depends_on:
+      - redis
+      - db
+    shm_size: '2gb'
+    networks:
+      - lancaster-network
+    command: /start-celeryworker
+
+  celerybeat:
+    <<: *celeryworker
+    container_name: lancaster_production_celerybeat
+#    image: lancaster_production_celerybeat
+    command: /start-celerybeat
+
+networks:
+  lancaster-network:
+    driver: bridge
+
