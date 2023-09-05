@@ -142,6 +142,8 @@ class Website(ABC):
 
     def take_screenshot(self, filename):
         screenshot_folder = 'scraper/debug'
+        # transform filename to be a valid filename
+        filename = "".join(x for x in filename if x.isalnum() or x in [" ", "_", "."]).rstrip()
         filename = f"{screenshot_folder}/{filename}"
         try:
             self.driver.save_screenshot(filename)
